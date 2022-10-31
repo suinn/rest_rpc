@@ -17,12 +17,35 @@ void traitsTest(rpc_client &cli, const std::string &signalName, Func func) {
         std::cout << typeid(func).name() << std::endl;
         std::cout << data.data()<< data.size() << std::endl;
         msgpack_codec codec;
-        person a = codec.unpack<person>(data.data(), data.size());
+        //person a = codec.unpack<person>(data.data(), data.size());
         auto paras = codec.unpack<tuple_type>(data.data(), data.size());
         
         std::apply(func, std::move(paras));
     };
     cli.subscribe(signalName, "048a796c8a3c6a6b7bd1223bf2c8cee05232e927b521984ba417cb2fca6df9d1",fun);
+}
+
+template <typename Func, typename Object>
+void traitsTestObj(rpc_client &cli, const std::string &signalName, Func func, Object* obj) {
+    auto fun = [func](string_view data) {
+        using tuple_type =
+            typename rest_rpc::function_traits<Func>::bare_tuple_type;
+
+        using ret_type = typename rest_rpc::function_traits<Func>::return_type;    
+        tuple_type temp;
+        ret_type  temp1;
+        std::cout << typeid(temp).name() << std::endl;
+        std::cout << typeid(func).name() << std::endl;
+        std::cout << typeid(temp1).name() << std::endl;
+        //std::cout << data.data()<< data.size() << std::endl;
+        msgpack_codec codec;
+        ////person a = codec.unpack<person>(data.data(), data.size());
+        auto paras = codec.unpack<tuple_type>(data.data(), data.size());
+        
+        //std::apply(func, std::move(paras));
+    };
+    cli.subscribe(signalName, "048a796c8a3c6a6b7bd1223bfRARA",fun);
+
 }
 
 void test_add() {
@@ -408,6 +431,15 @@ void wait_for_notification(rpc_client &client) {
         });
 }
 
+class objectSub{
+    public:
+    std::string test(person & temp)
+    {
+        std::cout<<temp.age<<std::endl;
+        return "return OK";
+    }
+};
+
 void test_rq() {
     rpc_client client;
     client.enable_auto_reconnect();
@@ -420,10 +452,16 @@ void test_rq() {
     auto testPk = [](person &p) {
         // msgpack_codec codec;
         // person p = codec.unpack<person>(data.data(), data.size());
-        std::cout << p.name << "\n";
+        std::cout << "La la la la"<<p.name << "\n";
     };
 
     traitsTest(client, "key", testPk);
+
+    objectSub temp;
+
+    traitsTestObj(client, "key", &objectSub::test,&temp);
+
+
 
     client.run();
 }

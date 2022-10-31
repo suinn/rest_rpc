@@ -2,7 +2,7 @@
 #define REST_RPC_META_UTIL_HPP
 
 #include <functional>
-#include "cplusplus_14.h"
+// #include "cplusplus_14.h"
 
 namespace rest_rpc {
 
@@ -20,11 +20,14 @@ void for_each_i(const std::tuple<Args...> &t, Func &&f,
        0)...};
 }
 
-template <typename T> struct function_traits;
+// 定义基础模版类
+template <typename T>
+class function_traits;
 
+// 普通函数
 template <typename Ret, typename Arg, typename... Args>
-struct function_traits<Ret(Arg, Args...)> {
-public:
+class function_traits<Ret(Arg, Args...)> {
+ public:
   enum { arity = sizeof...(Args) + 1 };
   typedef Ret function_type(Arg, Args...);
   typedef Ret return_type;
@@ -43,8 +46,9 @@ public:
                  std::remove_const_t<std::remove_reference_t<Args>>...>;
 };
 
-template <typename Ret> struct function_traits<Ret()> {
-public:
+template <typename Ret>
+class function_traits<Ret()> {
+ public:
   enum { arity = 0 };
   typedef Ret function_type();
   typedef Ret return_type;
@@ -57,23 +61,29 @@ public:
   using args_tuple_2nd = std::tuple<std::string>;
 };
 
+// 函数指针
 template <typename Ret, typename... Args>
-struct function_traits<Ret (*)(Args...)> : function_traits<Ret(Args...)> {};
+class function_traits<Ret (*)(Args...)> : public function_traits<Ret(Args...)> {
+};
 
+// std::function
 template <typename Ret, typename... Args>
-struct function_traits<std::function<Ret(Args...)>>
-    : function_traits<Ret(Args...)> {};
+class function_traits<std::function<Ret(Args...)>>
+    : public function_traits<Ret(Args...)> {};
+
+// 成员函数
+template <typename ReturnType, typename ClassType, typename... Args>
+class function_traits<ReturnType (ClassType::*)(Args...)>
+    : public function_traits<ReturnType(Args...)> {};
 
 template <typename ReturnType, typename ClassType, typename... Args>
-struct function_traits<ReturnType (ClassType::*)(Args...)>
-    : function_traits<ReturnType(Args...)> {};
+class function_traits<ReturnType (ClassType::*)(Args...) const>
+    : public function_traits<ReturnType(Args...)> {};
 
-template <typename ReturnType, typename ClassType, typename... Args>
-struct function_traits<ReturnType (ClassType::*)(Args...) const>
-    : function_traits<ReturnType(Args...)> {};
-
+// 函数对象
 template <typename Callable>
-struct function_traits : function_traits<decltype(&Callable::operator())> {};
+class function_traits
+    : public function_traits<decltype(&Callable::operator())> {};
 
 template <typename T>
 using remove_const_reference_t =
@@ -99,7 +109,7 @@ void tuple_switch(const std::size_t i, Tuple &&t, F &&f,
       (i == Is &&
        ((void)std::forward<F>(f)(std::integral_constant<size_t, Is>{}), 0))...};
 }
-} // namespace detail
+}  // namespace detail
 
 template <class Tuple, class F>
 inline void tuple_switch(const std::size_t i, Tuple &&t, F &&f) {
@@ -114,6 +124,6 @@ using nth_type_of = std::tuple_element_t<N, std::tuple<Args...>>;
 
 template <typename... Args>
 using last_type_of = nth_type_of<sizeof...(Args) - 1, Args...>;
-} // namespace rest_rpc
+}  // namespace rest_rpc
 
-#endif // REST_RPC_META_UTIL_HPP
+#endif  // REST_RPC_META_UTIL_HPP

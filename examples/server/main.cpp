@@ -165,7 +165,8 @@ int main() {
             auto list = server.get_token_list();
             for (auto &token : list) {
                 std::cout << "XXXXXXXXXXXXXXXX" << token << std::endl;
-                server.publish_by_token("key", token, p);
+                //server.publish_by_token("key", token, p);
+				server.publish_by_token("key", token, std::make_tuple(p));
                 server.publish_by_token("key1", token, "hello subscriber1");
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
