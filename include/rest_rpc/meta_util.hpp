@@ -24,7 +24,7 @@ void for_each_i(const std::tuple<Args...> &t, Func &&f,
 template <typename T>
 class function_traits;
 
-// 普通函数
+// 普通函数 ----偏特化<Ret(Arg, Args...)>
 template <typename Ret, typename Arg, typename... Args>
 class function_traits<Ret(Arg, Args...)> {
  public:
