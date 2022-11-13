@@ -22,8 +22,6 @@ RPC（Remote Procedure Call，远程过程调用） 两个不同系统间的数�
 - 消息的反序列化等等
 - 调用的重试，容错，超时处理，收发线程等
 
-==对象函数怎么调用==？
-
 TODO：也可以基于http、webservice发送数据
 
 RPC 的作用就是屏蔽网络相关操作，**让不在一个内存空间，甚至不在一个机器内的程序可以像调用普通函数一样被调用。**
@@ -35,86 +33,7 @@ RPC 的作用就是屏蔽网络相关操作，**让不在一个内存空间，�
 - Future模式，又叫异步模式，返回拿到一个Future对象，然后执行完获取到返回结果信息。
 - Callback模式，又叫回调模式，处理完请求以后，将处理结果信息作为参数传递给回调函数进行处理。
 
-
-
 Apache dubbo 基于JAVA的高性能RPC框架
-
-### 底层依赖
-
-#### 消息传输
-
-boost::asio:
-
-https://zhuanlan.zhihu.com/p/179070263
-
-Asio是不需要编译成lib文件，直接在程序中引入头文件即可。Asio依赖的库比较多，我们可以看下它的依赖：
-
-> Most programs interact with the outside world in some way, whether it be via a file, a network, a serial cable, or the console. Sometimes, as is the case with networking, individual I/O operations can take a long time to complete. This poses particular challenges to application development.
->
-> Boost.Asio provides the tools to manage these long running operations, without requiring programs to use concurrency models based on threads and explicit locking.
-
-我的理解是Asio是一个 **I\O** 库，**I\O**通常指数据的输入和输出。
-
-网络也可以当做一个输入与输出设备，Asio的重点在于网络，但是也可以用在串行端口、文件描述符等。
-
-Linux提出一切皆文件，那么我们也可以认为一切皆**I\O**。（当然没有输入和输出，那就不是了）
-
-Asio支持 I\O 上进行同步和异步操作。
-
-![image-20221025194518630](D:\01_jobRelated\04_Open_Source_Software_Analysis\rest_rpc\rest_rpc\rest_rpc技术分享.assets\image-20221025194518630.png)
-
-
-
-
-
-```C++
-	// 同步操作
-	boost::asio::io_context io;// I\O执行上下文
-	// I\O对象，这是一个计时器的I\O对象
-	// 将在5秒后wait才会返回
-	boost::asio::steady_timer t(io, boost::asio::chrono::seconds(5));
-	//调用I\O对象的函数
-	t.wait();
-	std::cout << "Hello, world!" << std::endl;
-```
-
-
-
-```C++
-	// I\O执行上下文
-	boost::asio::io_context io;
-
-	int count = 0;
-	// I\O对象
-	boost::asio::steady_timer t(io, boost::asio::chrono::seconds(1));
-	//调用I\O对象函数，同时传参（绑定回调函数和参数）
-	t.async_wait(boost::bind(PrintWithRet,
-		boost::asio::placeholders::error, &t, &count));
-	//检索执行结果
-	io.run();
-
-	std::cout << "Final count is " << count << std::endl;
-```
-
-
-
-#### IO复用策略
-
-- 进程间通信方式： 信号量、管道、共享内存、socket 等
-- 五大 IO 模型：同步、异步、阻塞、非阻塞、信号驱动
-- 高性能 IO 两种模式：Reactor 和 Proactor（ 但是 Linux 下由于缺少异步 IO 支持，基本没有 Proactor
-- 多线程编程：互斥锁、条件变量、读写锁、线程池等
-- IO 复用机制：epoll、select、poll（破解 C10K 问题的利器）
-
-
-
-
-
-
-
-#### 序列化反序列化
-
-msgpack:MessagePack(以下简称MsgPack)一个基于二进制高效的对象序列化类库，可用于跨语言通信。它可以像JSON那样，在许多种语言之间交换结构对象；但是它比JSON更快速也更轻巧。支持Python、Ruby、Java、C/C++等众多语言。比Google Protocol Buffer还要快4倍。
 
 
 
@@ -130,13 +49,13 @@ msgpack:MessagePack(以下简称MsgPack)一个基于二进制高效的对象序�
 
 
 
-![image-20221019133318899](D:\01_jobRelated\04_Open_Source_Software_Analysis\rest_rpc-master\rest_rpc技术分享.assets\image-20221019133318899.png)
+![image-20221019133318899](rest_rpc技术分享.assets/image-20221019133318899.png)
 
-![image-20221024193616154](D:\01_jobRelated\04_Open_Source_Software_Analysis\rest_rpc\rest_rpc\rest_rpc技术分享.assets\image-20221024193616154.png)
+![image-20221024193616154](rest_rpc技术分享.assets/image-20221024193616154.png)
 
 ### 目录结构
 
-![image-20221019133705281](D:\01_jobRelated\04_Open_Source_Software_Analysis\rest_rpc-master\rest_rpc技术分享.assets\image-20221019133705281.png)
+![image-20221019133705281](rest_rpc技术分享.assets/image-20221019133705281.png)
 
 无论 服务端 还是 客户端 都只用包含 include/rest_rpc.hpp 这一个文件即可。
 
@@ -211,22 +130,107 @@ int main()
 
 有时因为各种原因我们无法或者不希望一个远程调用能同步返回（比如需要等待一个线程返回），这时候只需给 register_handler 方法一个 Async 模板参数（位于 rest_rpc 命名空间）：
 
+```c++
+/*异步服务返回类型为 void*/
+void async_greet(rpc_conn conn, const std::string& name) {
+    auto req_id = conn.lock()->request_id();// 异步服务需要先保存请求 id
+
+    // 这里新建了一个线程，代表异步处理了一些任务
+    std::thread thd([conn, req_id, name] {
+        
+        std::string ret = "Hello " + name + ", Welcome to Hello Github!";
+        
+        /*这里的 conn 是一个 weak_ptr*/
+        auto conn_sp = conn.lock();// 使用 weak_ptr 的 lock 方法获取一个 shared_ptr
+        
+        if (conn_sp) {
+            /*操作完成，返回；std::move(ret) 为返回值*/
+            conn_sp->pack_and_response(req_id, std::move(ret));
+        }
+    });
+    
+    thd.detach();
+}
+
+int main(){
+    rpc_server server(9000, 6);
+    
+ server.register_handler<Async>("async_greet", async_greet);// 使用 Async 作为模板参数
+    
+    server.run();//启动服务端
+    
+    return EXIT_SUCCESS;
+}
+```
+
+rest_rpc 支持在同一个端口上注册多个服务，例如：
+
+```c++
+server.register_handler("func_greet", hello);
+server.register_handler("greet", &test_func::hello, &greeting);
+server.register_handler("call_lambda", 
+                        /*除 conn 外其他参数为可变参数*/
+                        [&server](rpc_conn conn /*其他参数可有可无*/) {
+                            std::cout << "Hello Github!" << std::endl;
+                            // 返回值可有可无
+                        });
+// 其他服务等等 
+server.run();
+```
 
 
 
 
-#### 发布订阅
+
+#### 发布消息
 
 rest_rpc 的一大特色就是提供了 发布-订阅 模式，这个模式在客户端和服务端之间需要不停传输消息时非常有用。
 
 **服务端**只需要使用rpc_server的publish或者publish_by_token方法即可发布一条订阅消息，其中如果使用 token 则订阅者需要使用相同的 token 才能访问，例如：
 
 ```C++
+int main() {
+    rpc_server server(9000, 6);
+
+    std::thread broadcast([&server]() {
+        while (true) {
+            /*发布订阅消息，所有订阅了 greet 的客户端都可以获得消息*/
+            server.publish("greet", "Hello GitHub!");
+            /*只有订阅了 secret_greet 并且提供了 www.hellogithub.com 作为 token 才可以获得消息*/
+            server.publish_by_token("secret_greet", "www.hellogithub.com", "Hello Github! this is secret message");
+
+            std::this_thread::sleep_for(std::chrono::seconds(1));// 等待一秒
+        }
+    });
+
+    server.run();//启动服务端
+
+    return EXIT_SUCCESS;
+}
 ```
 
 
 
 ##### 自定义结构体的发布订阅
+
+如果有这样一个对象需要传输：
+
+```c++
+struct person {
+ int id;
+ std::string name;
+ int age;
+
+ MSGPACK_DEFINE(id, name, age);
+};
+```
+
+**服务端** 直接将其作为一个参数即可，例如：
+
+```c++
+person p{ 1, "tom", 20 };
+server.publish("key", p);
+```
 
 
 
@@ -272,8 +276,6 @@ int mian()
 
 
 
-
-
 ##### **同步调用调用远程服务**
 
 rpc_client提供call的调用方法，有返回值和没有返回值两种使用方法
@@ -281,6 +283,32 @@ rpc_client提供call的调用方法，有返回值和没有返回值两种使用
 在调用call方法时如果我们的服务有返回值则需要设定模板参数，比如远程服务返回一个整数需要这样指定返回值类型call<int>，如果不指定则代表无返回值。
 
 ```C++
+int main(){
+    /* rest_rpc 在遇到错误（调用服务传入参数和远程服务需要参数不一致、连接失败等）时会抛出异常*/
+    try{
+
+        /*建立连接*/
+        rpc_client client("127.0.0.1", 9000);// IP 地址，端口号
+        /*设定超时 5s（不填默认为 3s），connect 超时返回 false，成功返回 true*/
+        bool has_connected = client.connect(5);
+        /*没有建立连接则退出程序*/
+        if (!has_connected) {
+            std::cout << "connect timeout" << std::endl;
+            exit(-1);
+        }
+
+        /*调用远程服务，返回欢迎信息*/
+        std::string result = client.call<std::string>("func_greet", "HG");// func_greet 为事先注册好的服务名，需要一个 name 参数，这里为 Hello Github 的缩写 HG
+        std::cout << result << std::endl;
+
+    }
+    /*遇到连接错误、调用服务时参数不对等情况会抛出异常*/
+    catch (const std::exception & e) {
+        std::cout << e.what() << std::endl;
+    }
+    
+    return EXIT_SUCCESS;
+}
 ```
 
 
@@ -291,7 +319,9 @@ rpc_client提供call的调用方法，有返回值和没有返回值两种使用
 
 ##### 异步调用远程服务
 
-rpc_client提供了async_call其中async_call又支持callback和future两种处理返回消息的方法，
+有些时候我们调用的远程服务由于各种原因需要一些时间才能返回，这时候可以使用 `rpc_client` 提供的异步调用方法 `async_call` ，它默认为 callback 模式，模板参数为 timeout 时间，如想要使用 future 模式则需要特别指定。
+
+**callback** 模式，**回调函数形参要与例程中一样**，在调用之后需要加上 `client.run()`：
 
 ```C++
     client.async_call(
@@ -308,9 +338,86 @@ rpc_client提供了async_call其中async_call又支持callback和future两种处
 
 
 
-#### 发布订阅
+```C++
+/*默认为 call back 模式，模板参数代表 timeout 2000ms，async_call 参数顺序为 服务名, 回调函数, 调用服务需要的参数(数目类型不定)*/
+/*timeout 不指定则默认为 5s，设定为 0 代表不检查 timeout */
+client.async_call<2000>("async_greet", 
+                  /*在远程服务返回时自动调用该回调函数，注意形参只能这样写*/
+                  [&client](const boost::system::error_code & ec, string_view data) {
+                        
+                        auto str = as<std::string>(data);
+                        std::cout << str << std::endl;
+                   }, 
+                  "HG");// echo 服务将传入的参数直接返回
+client.run(); // 启动服务线程，等待返回
 
-##### 自定义结构体的发布订阅
+// 其余部分和 call 的使用方法一样
+```
+
+**Future** 模式：
+
+```C++
+auto f = client.async_call<FUTURE>("async_greet", "HG");
+
+if (f.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout) {
+    std::cout << "timeout" << std::endl;
+}
+else {
+    auto ret = f.get().as<std::string>();// 转换为 string 对象，无返回值可以写 f.get().as()
+    std::cout << ret << std::endl;
+}
+```
+
+
+
+#### 订阅消息
+
+```C++
+void test_subscribe() {
+    rpc_client client;
+
+    client.enable_auto_reconnect();// 自动重连
+    client.enable_auto_heartbeat();// 自动心跳包
+    bool r = client.connect("127.0.0.1", 9000);
+    if (!r) {
+        return;
+    }
+
+    // 直接订阅，无 token
+    client.subscribe("greet", [](string_view data) {
+        std::cout << data << std::endl;
+        });
+    // 需要 token 才能正常获得订阅消息
+    client.subscribe("secret_greet", "www.hellogithub.com", [](string_view data) {
+        std::cout << data << std::endl;
+        });
+    
+    client.run();// 不断运行
+}
+
+int main() {
+    
+    test_subscribe();
+
+    return EXIT_SUCCESS;
+}
+```
+
+
+
+##### 订阅自定义的对象
+
+```C++
+client.subscribe("key", 
+                 [](string_view data) {
+                     msgpack_codec codec;
+                     
+                     person p = codec.unpack<person>(data.data(), data.size());
+                     std::cout << p.name << std::endl;
+                 });
+```
+
+
 
 
 
@@ -321,16 +428,10 @@ rpc_client提供了async_call其中async_call又支持callback和future两种处
 **客户端** 只需使用 rpc_client 的 subscribe 方法即可：
 
 ```C++
+
 ```
 
 
-
-## 总结
-
-RPC 有很多成熟的工业框架如：
-
-- 谷歌的 grpc
-- 百度的 brpc 等
 
 
 
@@ -504,9 +605,135 @@ using last_type_of = nth_type_of<sizeof...(Args) - 1, Args...>;
 
 
 
+### 通信机制
+
+#### 消息传输boost::asio:
+
+https://zhuanlan.zhihu.com/p/179070263
+
+Asio是不需要编译成lib文件，直接在程序中引入头文件即可。Asio依赖的库比较多，我们可以看下它的依赖：
+
+我的理解是Asio是一个 **I\O** 库，**I\O**通常指数据的输入和输出。
+
+网络也可以当做一个输入与输出设备，Asio的重点在于网络，但是也可以用在串行端口、文件描述符等。
+
+Linux提出一切皆文件，那么我们也可以认为一切皆**I\O**。（当然没有输入和输出，那就不是了）
+
+Asio支持 I\O 上进行同步和异步操作。
+
+![image-20221025194518630](rest_rpc技术分享.assets/image-20221025194518630.png)
 
 
 
+
+
+```C++
+	// 同步操作
+	boost::asio::io_context io;// I\O执行上下文
+	// I\O对象，这是一个计时器的I\O对象
+	// 将在5秒后wait才会返回
+	boost::asio::steady_timer t(io, boost::asio::chrono::seconds(5));
+	//调用I\O对象的函数
+	t.wait();
+	std::cout << "Hello, world!" << std::endl;
+```
+
+
+
+```C++
+	// I\O执行上下文
+	boost::asio::io_context io;
+
+	int count = 0;
+	// I\O对象
+	boost::asio::steady_timer t(io, boost::asio::chrono::seconds(1));
+	//调用I\O对象函数，同时传参（绑定回调函数和参数）
+	t.async_wait(boost::bind(PrintWithRet,
+		boost::asio::placeholders::error, &t, &count));
+	//检索执行结果
+	io.run();
+
+	std::cout << "Final count is " << count << std::endl;
+```
+
+#### 基于事件驱动的编程模型
+
+##### Reactor模式
+
+Lighttpd,libevent,libev,pora
+
+<img src="rest_rpc技术分享.assets/image-20221113234058528.png" alt="image-20221113234058528" style="zoom:50%;" />
+
+##### Proactor模式
+
+Asio,iocp
+
+
+
+#### IO复用策略
+
+- 进程间通信方式： 信号量、管道、共享内存、socket 等
+- 五大 IO 模型：同步、异步、阻塞、非阻塞、信号驱动
+- 高性能 IO 两种模式：Reactor 和 Proactor（ 但是 Linux 下由于缺少异步 IO 支持，基本没有 Proactor
+- 多线程编程：互斥锁、条件变量、读写锁、线程池等
+- IO 复用机制：epoll、select、poll（破解 C10K 问题的利器）
+
+
+
+### 序列与反序列
+
+msgpack:MessagePack(以下简称MsgPack)一个基于二进制高效的对象序列化类库，可用于跨语言通信。它可以像JSON那样，在许多种语言之间交换结构对象；但是它比JSON更快速也更轻巧。支持Python、Ruby、Java、C/C++等众多语言。比Google Protocol Buffer还要快4倍。
+
+使用 rest_rpc 时如果参数是标准库相关对象则不需要单独指定序列化方式，如果使用自定义对象，则需要使用 msgpack 定义序列化方式，例如要传输这样一个结构体：
+
+```c++
+struct person {
+ int id;
+ std::string name;
+ int age;
+};
+```
+
+则需要加上 `MSGPACK_DEFINE()`：
+
+```c++
+/*
+注意：无论是服务端还是客户端都要进行这样的操作
+客户端和服务端 MSGPACK_DEFINE() 中的填入的参数顺序必须一致，这一点和 msgpack 的序列化方式有
+如客户端和服务端中 MSGPACK_DEFINE() 中参数顺序不一致可能会导致解包时发生错误
+*/
+struct person {
+ int id;
+ std::string name;
+ int age;
+
+ MSGPACK_DEFINE(id, name, age);//定义需要序列化的内容
+};
+```
+
+在对象中也是同理：
+
+```c++
+class person{
+    private:
+     int id;
+        std::string name;
+        int age;
+    public:
+     MSGPACK_DEFINE(id, name, age);//需要在 public 中
+}
+```
+
+然后即可将 person 作为参数类型进行使用。
+
+
+
+## 总结
+
+RPC 有很多成熟的工业框架如：
+
+- 谷歌的 grpc
+- 百度的 brpc 等
 
 
 
