@@ -609,8 +609,6 @@ using last_type_of = nth_type_of<sizeof...(Args) - 1, Args...>;
 
 #### 消息传输boost::asio:
 
-https://zhuanlan.zhihu.com/p/179070263
-
 Asio是不需要编译成lib文件，直接在程序中引入头文件即可。Asio依赖的库比较多，我们可以看下它的依赖：
 
 我的理解是Asio是一个 **I\O** 库，**I\O**通常指数据的输入和输出。
@@ -655,28 +653,6 @@ Asio支持 I\O 上进行同步和异步操作。
 
 	std::cout << "Final count is " << count << std::endl;
 ```
-
-#### 基于事件驱动的编程模型
-
-##### Reactor模式
-
-Lighttpd,libevent,libev,pora
-
-<img src="rest_rpc技术分享.assets/image-20221113234058528.png" alt="image-20221113234058528" style="zoom:50%;" />
-
-##### Proactor模式
-
-Asio,iocp
-
-
-
-#### IO复用策略
-
-- 进程间通信方式： 信号量、管道、共享内存、socket 等
-- 五大 IO 模型：同步、异步、阻塞、非阻塞、信号驱动
-- 高性能 IO 两种模式：Reactor 和 Proactor（ 但是 Linux 下由于缺少异步 IO 支持，基本没有 Proactor
-- 多线程编程：互斥锁、条件变量、读写锁、线程池等
-- IO 复用机制：epoll、select、poll（破解 C10K 问题的利器）
 
 
 
@@ -725,6 +701,14 @@ class person{
 ```
 
 然后即可将 person 作为参数类型进行使用。
+
+### 服务器端头文件
+
+​		服务器端依赖的核心类为rpc_server，主要依赖项如下：
+
+![image-20221122202542593](rest_rpc技术分享.assets/image-20221122202542593.png)
+
+
 
 
 
