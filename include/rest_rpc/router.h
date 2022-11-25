@@ -1,11 +1,10 @@
 #ifndef REST_RPC_ROUTER_H_
 #define REST_RPC_ROUTER_H_
 
-#include <functional>
-
 #include "codec.h"
 #include "meta_util.hpp"
 #include "use_asio.hpp"
+#include <functional>
 
 namespace rest_rpc {
 enum class ExecMode { sync, async };
@@ -15,7 +14,7 @@ namespace rpc_service {
 class connection;
 
 class router : asio::noncopyable {
- public:
+public:
   template <ExecMode model, typename Function>
   void register_handler(std::string const &name, Function f) {
     return register_nonmember_func<model>(name, std::move(f));
@@ -72,7 +71,7 @@ class router : asio::noncopyable {
 
   router() = default;
 
- private:
+private:
   router(const router &) = delete;
   router(router &&) = delete;
 
@@ -138,8 +137,7 @@ class router : asio::noncopyable {
     result = msgpack_codec::pack_args_str(result_code::OK, r);
   }
 
-  template <typename Function, ExecMode mode = ExecMode::sync>
-  struct invoker {
+  template <typename Function, ExecMode mode = ExecMode::sync> struct invoker {
     template <ExecMode model>
     static inline void apply(const Function &func,
                              std::weak_ptr<connection> conn, const char *data,
@@ -201,7 +199,7 @@ class router : asio::noncopyable {
                                       size_t, std::string &, ExecMode &model)>>
       map_invokers_;
 };
-}  // namespace rpc_service
-}  // namespace rest_rpc
+} // namespace rpc_service
+} // namespace rest_rpc
 
-#endif  // REST_RPC_ROUTER_H_
+#endif // REST_RPC_ROUTER_H_
